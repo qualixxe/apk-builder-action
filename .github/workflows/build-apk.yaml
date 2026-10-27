@@ -1,4 +1,4 @@
-name: Build A16 Style App
+name: Build A16 Style App (XML)
 
 on:
   workflow_dispatch:
@@ -22,22 +22,18 @@ jobs:
         with:
           gradle-version: 8.2
 
-      - name: Generate Android Project (A16 / Material 3)
+      - name: Generate Android Project (XML Material 3)
         run: |
           mkdir -p app/src/main/java/com/qualixxe/deviceinfo
           mkdir -p app/src/main/res/drawable
           mkdir -p app/src/main/res/values
+          mkdir -p app/src/main/res/layout
           
           if [ -f icon.png ]; then cp icon.png app/src/main/res/drawable/icon.png; fi
           
           cat << 'EOF' > settings.gradle.kts
-          pluginManagement {
-              repositories { google(); mavenCentral(); gradlePluginPortal() }
-          }
-          dependencyResolutionManagement {
-              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-              repositories { google(); mavenCentral() }
-          }
+          pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
+          dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
           rootProject.name = "DeviceInfoA16"
           include(":app")
           EOF
@@ -64,8 +60,6 @@ jobs:
                   versionCode = 1
                   versionName = "1.0"
               }
-              buildFeatures { compose = true }
-              composeOptions { kotlinCompilerExtensionVersion = "1.5.4" }
               compileOptions {
                   sourceCompatibility = JavaVersion.VERSION_17
                   targetCompatibility = JavaVersion.VERSION_17
@@ -74,21 +68,17 @@ jobs:
           }
           dependencies {
               implementation("androidx.core:core-ktx:1.12.0")
-              implementation("androidx.activity:activity-compose:1.8.2")
-              implementation(platform("androidx.compose:compose-bom:2023.10.01"))
-              implementation("androidx.compose.ui:ui")
-              implementation("androidx.compose.ui:ui-graphics")
-              implementation("androidx.compose.ui:ui-tooling-preview")
-              implementation("androidx.compose.material3:material3")
-              implementation("androidx.compose.foundation:foundation")
-              debugImplementation("androidx.compose.ui:ui-tooling")
+              implementation("androidx.appcompat:appcompat:1.6.1")
+              implementation("com.google.android.material:material:1.11.0")
           }
           EOF
 
-          # Создаем файл темы, чтобы приложение не крашилось при запуске
           cat << 'EOF' > app/src/main/res/values/themes.xml
-          <resources>
-              <style name="Theme.MyApp" parent="android:style/Theme.Material.Light.NoActionBar" />
+          <resources xmlns:tools="http://schemas.android.com/tools">
+              <style name="Theme.MyApp" parent="Theme.Material3.DayNight.NoActionBar">
+                  <item name="colorPrimary">#1E88E5</item>
+                  <item name="colorSecondaryContainer">#E3F2FD</item>
+              </style>
           </resources>
           EOF
 
@@ -101,9 +91,7 @@ jobs:
                   android:label="A16 Style"
                   android:supportsRtl="true"
                   android:theme="@style/Theme.MyApp">
-                  <activity
-                      android:name=".MainActivity"
-                      android:exported="true">
+                  <activity android:name=".MainActivity" android:exported="true">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
                           <category android:name="android.intent.category.LAUNCHER" />
@@ -113,113 +101,103 @@ jobs:
           </manifest>
           EOF
 
+          cat << 'EOF' > app/src/main/res/layout/activity_main.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              xmlns:app="http://schemas.android.com/apk/res-auto"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:orientation="vertical"
+              android:padding="24dp"
+              android:gravity="center_horizontal"
+              android:background="@android:color/transparent">
+
+              <TextView
+                  android:layout_width="wrap_content"
+                  android:layout_height="wrap_content"
+                  android:text="Инфо о телефоне"
+                  android:textSize="28sp"
+                  android:textStyle="bold"
+                  android:layout_marginBottom="24dp" />
+
+              <com.google.android.material.card.MaterialCardView
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  app:cardCornerRadius="32dp"
+                  app:cardElevation="0dp"
+                  app:cardBackgroundColor="?attr/colorSecondaryContainer"
+                  android:layout_marginBottom="24dp">
+
+                  <LinearLayout
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:orientation="vertical"
+                      android:padding="24dp">
+
+                      <TextView
+                          android:id="@+id/tvInfo"
+                          android:layout_width="match_parent"
+                          android:layout_height="wrap_content"
+                          android:textSize="16sp"
+                          android:lineSpacingExtra="8dp"/>
+                  </LinearLayout>
+              </com.google.android.material.card.MaterialCardView>
+
+              <com.google.android.material.button.MaterialButton
+                  android:id="@+id/btnBg"
+                  android:layout_width="match_parent"
+                  android:layout_height="60dp"
+                  android:text="Сменить фон"
+                  android:textSize="18sp"
+                  app:cornerRadius="30dp" />
+
+              <Space
+                  android:layout_width="match_parent"
+                  android:layout_height="0dp"
+                  android:layout_weight="1" />
+
+              <TextView
+                  android:layout_width="wrap_content"
+                  android:layout_height="wrap_content"
+                  android:text="Made by @qualixxe096"
+                  android:textSize="14sp" />
+          </LinearLayout>
+          EOF
+
           cat << 'EOF' > app/src/main/java/com/qualixxe/deviceinfo/MainActivity.kt
           package com.qualixxe.deviceinfo
 
           import android.net.Uri
           import android.os.Build
           import android.os.Bundle
-          import androidx.activity.ComponentActivity
-          import androidx.activity.compose.rememberLauncherForActivityResult
-          import androidx.activity.compose.setContent
+          import android.widget.Button
+          import android.widget.TextView
           import androidx.activity.result.contract.ActivityResultContracts
-          import androidx.compose.foundation.background
-          import androidx.compose.foundation.layout.*
-          import androidx.compose.foundation.shape.RoundedCornerShape
-          import androidx.compose.material3.*
-          import androidx.compose.runtime.*
-          import androidx.compose.ui.Alignment
-          import androidx.compose.ui.Modifier
-          import androidx.compose.ui.draw.clip
-          import androidx.compose.ui.graphics.Color
-          import androidx.compose.ui.text.font.FontWeight
-          import androidx.compose.ui.unit.dp
-          import androidx.compose.ui.unit.sp
+          import androidx.appcompat.app.AppCompatActivity
 
-          class MainActivity : ComponentActivity() {
-              override fun onCreate(savedInstanceState: Bundle?) {
-                  super.onCreate(savedInstanceState)
-                  setContent {
-                      MaterialTheme {
-                          Surface(
-                              modifier = Modifier.fillMaxSize(),
-                              color = MaterialTheme.colorScheme.background
-                          ) {
-                              DeviceInfoScreen()
-                          }
-                      }
+          class MainActivity : AppCompatActivity() {
+              private val pickImage = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+                  if (uri != null) {
+                      try {
+                          window.setBackgroundDrawable(android.graphics.drawable.BitmapDrawable(resources, android.provider.MediaStore.Images.Media.getBitmap(contentResolver, uri)))
+                      } catch (e: Exception) { e.printStackTrace() }
                   }
               }
-          }
 
-          @OptIn(ExperimentalMaterial3Api::class)
-          @Composable
-          fun DeviceInfoScreen() {
-              var backgroundUri by remember { mutableStateOf<Uri?>(null) }
-              val launcher = rememberLauncherForActivityResult(
-                  contract = ActivityResultContracts.GetContent()
-              ) { uri: Uri? ->
-                  backgroundUri = uri
-              }
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+                  setContentView(R.layout.activity_main)
 
-              Box(
-                  modifier = Modifier
-                      .fillMaxSize()
-                      .then(
-                          if (backgroundUri != null) {
-                              Modifier.background(Color.Gray)
-                          } else {
-                              Modifier.background(MaterialTheme.colorScheme.background)
-                          }
-                      )
-                      .padding(20.dp)
-              ) {
-                  Column(
-                      modifier = Modifier.fillMaxSize(),
-                      horizontalAlignment = Alignment.CenterHorizontally
-                  ) {
-                      Text(
-                          text = "Инфо о телефоне",
-                          fontSize = 28.sp,
-                          fontWeight = FontWeight.Bold,
-                          modifier = Modifier.padding(bottom = 24.dp),
-                          color = MaterialTheme.colorScheme.onBackground
-                      )
+                  val tvInfo = findViewById<TextView>(R.id.tvInfo)
+                  tvInfo.text = """
+                      Модель: ${Build.MODEL}
+                      Производитель: ${Build.MANUFACTURER}
+                      Android: ${Build.VERSION.RELEASE}
+                      Ядро: ${System.getProperty("os.version")}
+                  """.trimIndent()
 
-                      Box(
-                          modifier = Modifier
-                              .fillMaxWidth()
-                              .clip(RoundedCornerShape(32.dp))
-                              .background(MaterialTheme.colorScheme.secondaryContainer)
-                              .padding(24.dp)
-                      ) {
-                          Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                              Text("Модель: ${Build.MODEL}", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSecondaryContainer)
-                              Text("Производитель: ${Build.MANUFACTURER}", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSecondaryContainer)
-                              Text("Android: ${Build.VERSION.RELEASE}", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSecondaryContainer)
-                              Text("Ядро: ${System.getProperty("os.version")}", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSecondaryContainer)
-                          }
-                      }
-
-                      Spacer(modifier = Modifier.height(20.dp))
-
-                      Button(
-                          onClick = { launcher.launch("image/*") },
-                          modifier = Modifier.fillMaxWidth().height(60.dp),
-                          shape = RoundedCornerShape(30.dp),
-                          colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                      ) {
-                          Text("Сменить фон", fontSize = 18.sp)
-                      }
-
-                      Spacer(modifier = Modifier.weight(1f))
-
-                      Text(
-                          text = "Made by @qualixxe096",
-                          fontSize = 14.sp,
-                          color = MaterialTheme.colorScheme.onBackground,
-                          modifier = Modifier.padding(bottom = 20.dp)
-                      )
+                  findViewById<Button>(R.id.btnBg).setOnClickListener {
+                      pickImage.launch("image/*")
                   }
               }
           }
