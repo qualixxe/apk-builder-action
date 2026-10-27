@@ -7,7 +7,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Action Repo
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
@@ -16,18 +16,19 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Clone Target Android Project
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Clone Target Project
         run: |
-          # Клонируем репозиторий приложения (Device Info)
           git clone https://github.com/ShiYioo/deviceInfo.git target_app
           cd target_app
-          # Делаем gradlew исполняемым (на случай, если права сбились)
           chmod +x gradlew || true
 
-      - name: Build APK with Gradle
+      - name: Build Debug APK
         run: |
           cd target_app
-          # Собираем debug-версию, чтобы не возиться с подписями
+          # Если gradlew нет или он сломан, используем глобальный gradle
           ./gradlew assembleDebug || gradle assembleDebug
 
       - name: Upload APK
