@@ -1,4 +1,4 @@
-name: Build Custom APK
+name: Build A16 Style App
 
 on:
   workflow_dispatch:
@@ -21,35 +21,25 @@ jobs:
         with:
           gradle-version: 8.2
 
-      - name: Generate Android Project
+      - name: Generate Android Project (Material 3 / A16 Style)
         run: |
           mkdir -p app/src/main/java/com/qualixxe/deviceinfo
           mkdir -p app/src/main/res/drawable
           
-          # Копируем твою иконку в ресурсы Android
-          cp icon.png app/src/main/res/drawable/icon.png
+          if [ -f icon.png ]; then cp icon.png app/src/main/res/drawable/icon.png; fi
           
-          # 1. settings.gradle.kts
           cat << 'EOF' > settings.gradle.kts
           pluginManagement {
-              repositories {
-                  google()
-                  mavenCentral()
-                  gradlePluginPortal()
-              }
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
           }
           dependencyResolutionManagement {
               repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-              repositories {
-                  google()
-                  mavenCentral()
-              }
+              repositories { google(); mavenCentral() }
           }
-          rootProject.name = "DeviceInfo"
+          rootProject.name = "DeviceInfoA16"
           include(":app")
           EOF
 
-          # 2. build.gradle.kts (корневой)
           cat << 'EOF' > build.gradle.kts
           plugins {
               id("com.android.application") version "8.2.0" apply false
@@ -57,7 +47,6 @@ jobs:
           }
           EOF
 
-          # 3. app/build.gradle.kts
           cat << 'EOF' > app/build.gradle.kts
           plugins {
               id("com.android.application")
@@ -68,42 +57,38 @@ jobs:
               compileSdk = 34
               defaultConfig {
                   applicationId = "com.qualixxe.deviceinfo"
-                  minSdk = 24
+                  minSdk = 26
                   targetSdk = 34
                   versionCode = 1
                   versionName = "1.0"
               }
-              buildTypes {
-                  release {
-                      isMinifyEnabled = false
-                  }
-              }
+              buildFeatures { compose = true }
+              composeOptions { kotlinCompilerExtensionVersion = "1.5.1" }
               compileOptions {
                   sourceCompatibility = JavaVersion.VERSION_17
                   targetCompatibility = JavaVersion.VERSION_17
               }
-              kotlinOptions {
-                  jvmTarget = "17"
-              }
+              kotlinOptions { jvmTarget = "17" }
           }
           dependencies {
               implementation("androidx.core:core-ktx:1.12.0")
-              implementation("androidx.appcompat:appcompat:1.6.1")
-              implementation("com.google.android.material:material:1.11.0")
-              implementation("androidx.activity:activity-ktx:1.8.2")
+              implementation("androidx.activity:activity-compose:1.8.2")
+              implementation(platform("androidx.compose:compose-bom:2023.10.01"))
+              implementation("androidx.compose.ui:ui")
+              implementation("androidx.compose.material3:material3")
+              implementation("androidx.compose.ui:ui-tooling-preview")
           }
           EOF
 
-          # 4. AndroidManifest.xml (добавлена строка android:icon="@drawable/icon")
           cat << 'EOF' > app/src/main/AndroidManifest.xml
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <application
                   android:allowBackup="true"
                   android:icon="@drawable/icon"
-                  android:label="Инфо о телефоне"
+                  android:label="A16 Style"
                   android:supportsRtl="true"
-                  android:theme="@android:style/Theme.DeviceDefault.DayNight">
+                  android:theme="@style/Theme.Material3.DayNight.NoActionBar">
                   <activity
                       android:name=".MainActivity"
                       android:exported="true">
@@ -116,97 +101,98 @@ jobs:
           </manifest>
           EOF
 
-          # 5. MainActivity.kt
           cat << 'EOF' > app/src/main/java/com/qualixxe/deviceinfo/MainActivity.kt
           package com.qualixxe.deviceinfo
 
-          import android.graphics.BitmapFactory
-          import android.graphics.drawable.BitmapDrawable
           import android.net.Uri
           import android.os.Build
           import android.os.Bundle
-          import android.widget.*
+          import androidx.activity.ComponentActivity
+          import androidx.activity.compose.rememberLauncherForActivityResult
+          import androidx.activity.compose.setContent
           import androidx.activity.result.contract.ActivityResultContracts
-          import androidx.appcompat.app.AppCompatActivity
-          import androidx.core.view.setPadding
+          import androidx.compose.foundation.background
+          import androidx.compose.foundation.layout.*
+          import androidx.compose.foundation.shape.RoundedCornerShape
+          import androidx.compose.material3.*
+          import androidx.compose.runtime.*
+          import androidx.compose.ui.Alignment
+          import androidx.compose.ui.Modifier
+          import androidx.compose.ui.graphics.Color
+          import androidx.compose.ui.platform.LocalContext
+          import androidx.compose.ui.text.font.FontWeight
+          import androidx.compose.ui.unit.dp
+          import androidx.compose.ui.unit.sp
 
-          class MainActivity : AppCompatActivity() {
-              private var mainLayout: LinearLayout? = null
-              private lateinit var contentLayout: LinearLayout
-
-              private val pickImage = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-                  if (uri != null) {
-                      try {
-                          val inputStream = contentResolver.openInputStream(uri)
-                          val bitmap = BitmapFactory.decodeStream(inputStream)
-                          mainLayout?.background = BitmapDrawable(resources, bitmap)
-                      } catch (e: Exception) {
-                          e.printStackTrace()
+          class MainActivity : ComponentActivity() {
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+                  setContent {
+                      MaterialTheme {
+                          Surface(
+                              modifier = Modifier.fillMaxSize(),
+                              color = MaterialTheme.colorScheme.background
+                          ) {
+                              DeviceInfoScreen()
+                          }
                       }
                   }
               }
+          }
 
-              override fun onCreate(savedInstanceState: Bundle?) {
-                  super.onCreate(savedInstanceState)
+          @OptIn(ExperimentalMaterial3Api::class)
+          @Composable
+          fun DeviceInfoScreen() {
+              var bgColor by remember { mutableStateOf(MaterialTheme.colorScheme.surfaceVariant) }
 
-                  mainLayout = LinearLayout(this).apply {
-                      orientation = LinearLayout.VERTICAL
-                      setPadding(50)
-                  }
+              Column(
+                  modifier = Modifier
+                      .fillMaxSize()
+                      .padding(20.dp),
+                  horizontalAlignment = Alignment.CenterHorizontally
+              ) {
+                  Text(
+                      text = "Инфо о телефоне",
+                      fontSize = 28.sp,
+                      fontWeight = FontWeight.Bold,
+                      modifier = Modifier.padding(bottom = 24.dp)
+                  )
 
-                  val scrollView = ScrollView(this)
-                  contentLayout = LinearLayout(this).apply {
-                      orientation = LinearLayout.VERTICAL
-                      setBackgroundColor(android.graphics.Color.argb(220, 255, 255, 255))
-                      setPadding(40)
-                  }
-
-                  val title = TextView(this).apply {
-                      text = "Информация об устройстве"
-                      textSize = 24f
-                      setTextColor(android.graphics.Color.BLACK)
-                  }
-
-                  val infoText = TextView(this).apply {
-                      textSize = 16f
-                      setTextColor(android.graphics.Color.BLACK)
-                      setPadding(0, 30, 0, 30)
-                      text = """
-                          📱 Модель: ${'$'}{Build.MODEL}
-                          🏭 Производитель: ${'$'}{Build.MANUFACTURER}
-                          ⚙️ Устройство: ${'$'}{Build.DEVICE}
-                          
-                          🤖 ОС: Android ${'$'}{Build.VERSION.RELEASE} (API ${'$'}{Build.VERSION.SDK_INT})
-                          
-                          🧠 Процессор: ${'$'}{Build.HARDWARE}
-                          
-                          🏗️ Ядро: ${'$'}{System.getProperty("os.version")}
-                      """.trimIndent()
-                  }
-
-                  val btnChangeBg = Button(this).apply {
-                      text = "Сменить фон"
-                      setOnClickListener {
-                          pickImage.launch("image/*")
+                  // Карточка-пилюля (как в A16)
+                  Box(
+                      modifier = Modifier
+                          .fillMaxWidth()
+                          .clip(RoundedCornerShape(32.dp))
+                          .background(MaterialTheme.colorScheme.secondaryContainer)
+                          .padding(24.dp)
+                  ) {
+                      Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                          Text("Модель: ${Build.MODEL}", fontSize = 16.sp)
+                          Text("Производитель: ${Build.MANUFACTURER}", fontSize = 16.sp)
+                          Text("Android: ${Build.VERSION.RELEASE}", fontSize = 16.sp)
+                          Text("Ядро: ${System.getProperty("os.version")}", fontSize = 16.sp)
                       }
                   }
 
-                  val madeBy = TextView(this).apply {
-                      text = "Made by @qualixxe096"
-                      textSize = 14f
-                      setTextColor(android.graphics.Color.DKGRAY)
-                      setPadding(0, 50, 0, 0)
+                  Spacer(modifier = Modifier.height(20.dp))
+
+                  // Кнопки-пилюли
+                  Button(
+                      onClick = { /* Смена цвета для теста */ },
+                      modifier = Modifier.fillMaxWidth().height(60.dp),
+                      shape = RoundedCornerShape(30.dp),
+                      colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                  ) {
+                      Text("Сменить цвет", fontSize = 18.sp)
                   }
 
-                  contentLayout.addView(title)
-                  contentLayout.addView(infoText)
-                  contentLayout.addView(btnChangeBg)
-                  contentLayout.addView(madeBy)
+                  Spacer(modifier = Modifier.height(40.dp))
 
-                  scrollView.addView(contentLayout)
-                  mainLayout?.addView(scrollView)
-
-                  setContentView(mainLayout)
+                  Text(
+                      text = "Made by @qualixxe096",
+                      fontSize = 14.sp,
+                      color = MaterialTheme.colorScheme.onSurfaceVariant
+                  )
               }
           }
           EOF
@@ -217,5 +203,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: custom-device-info-apk
+          name: a16-style-app
           path: app/build/outputs/apk/debug/app-debug.apk
