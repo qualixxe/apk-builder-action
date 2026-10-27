@@ -6,6 +6,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 360
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -21,10 +22,11 @@ jobs:
         with:
           gradle-version: 8.2
 
-      - name: Generate Android Project (Material 3 / A16 Style)
+      - name: Generate Android Project (A16 / Material 3)
         run: |
           mkdir -p app/src/main/java/com/qualixxe/deviceinfo
           mkdir -p app/src/main/res/drawable
+          mkdir -p app/src/main/res/values
           
           if [ -f icon.png ]; then cp icon.png app/src/main/res/drawable/icon.png; fi
           
@@ -63,7 +65,7 @@ jobs:
                   versionName = "1.0"
               }
               buildFeatures { compose = true }
-              composeOptions { kotlinCompilerExtensionVersion = "1.5.1" }
+              composeOptions { kotlinCompilerExtensionVersion = "1.5.4" }
               compileOptions {
                   sourceCompatibility = JavaVersion.VERSION_17
                   targetCompatibility = JavaVersion.VERSION_17
@@ -75,9 +77,19 @@ jobs:
               implementation("androidx.activity:activity-compose:1.8.2")
               implementation(platform("androidx.compose:compose-bom:2023.10.01"))
               implementation("androidx.compose.ui:ui")
-              implementation("androidx.compose.material3:material3")
+              implementation("androidx.compose.ui:ui-graphics")
               implementation("androidx.compose.ui:ui-tooling-preview")
+              implementation("androidx.compose.material3:material3")
+              implementation("androidx.compose.foundation:foundation")
+              debugImplementation("androidx.compose.ui:ui-tooling")
           }
+          EOF
+
+          # Создаем файл темы, чтобы приложение не крашилось при запуске
+          cat << 'EOF' > app/src/main/res/values/themes.xml
+          <resources>
+              <style name="Theme.MyApp" parent="android:style/Theme.Material.Light.NoActionBar" />
+          </resources>
           EOF
 
           cat << 'EOF' > app/src/main/AndroidManifest.xml
@@ -88,7 +100,7 @@ jobs:
                   android:icon="@drawable/icon"
                   android:label="A16 Style"
                   android:supportsRtl="true"
-                  android:theme="@style/Theme.Material3.DayNight.NoActionBar">
+                  android:theme="@style/Theme.MyApp">
                   <activity
                       android:name=".MainActivity"
                       android:exported="true">
@@ -118,8 +130,8 @@ jobs:
           import androidx.compose.runtime.*
           import androidx.compose.ui.Alignment
           import androidx.compose.ui.Modifier
+          import androidx.compose.ui.draw.clip
           import androidx.compose.ui.graphics.Color
-          import androidx.compose.ui.platform.LocalContext
           import androidx.compose.ui.text.font.FontWeight
           import androidx.compose.ui.unit.dp
           import androidx.compose.ui.unit.sp
@@ -143,56 +155,72 @@ jobs:
           @OptIn(ExperimentalMaterial3Api::class)
           @Composable
           fun DeviceInfoScreen() {
-              var bgColor by remember { mutableStateOf(MaterialTheme.colorScheme.surfaceVariant) }
+              var backgroundUri by remember { mutableStateOf<Uri?>(null) }
+              val launcher = rememberLauncherForActivityResult(
+                  contract = ActivityResultContracts.GetContent()
+              ) { uri: Uri? ->
+                  backgroundUri = uri
+              }
 
-              Column(
+              Box(
                   modifier = Modifier
                       .fillMaxSize()
-                      .padding(20.dp),
-                  horizontalAlignment = Alignment.CenterHorizontally
+                      .then(
+                          if (backgroundUri != null) {
+                              Modifier.background(Color.Gray)
+                          } else {
+                              Modifier.background(MaterialTheme.colorScheme.background)
+                          }
+                      )
+                      .padding(20.dp)
               ) {
-                  Text(
-                      text = "Инфо о телефоне",
-                      fontSize = 28.sp,
-                      fontWeight = FontWeight.Bold,
-                      modifier = Modifier.padding(bottom = 24.dp)
-                  )
-
-                  // Карточка-пилюля (как в A16)
-                  Box(
-                      modifier = Modifier
-                          .fillMaxWidth()
-                          .clip(RoundedCornerShape(32.dp))
-                          .background(MaterialTheme.colorScheme.secondaryContainer)
-                          .padding(24.dp)
+                  Column(
+                      modifier = Modifier.fillMaxSize(),
+                      horizontalAlignment = Alignment.CenterHorizontally
                   ) {
-                      Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                          Text("Модель: ${Build.MODEL}", fontSize = 16.sp)
-                          Text("Производитель: ${Build.MANUFACTURER}", fontSize = 16.sp)
-                          Text("Android: ${Build.VERSION.RELEASE}", fontSize = 16.sp)
-                          Text("Ядро: ${System.getProperty("os.version")}", fontSize = 16.sp)
+                      Text(
+                          text = "Инфо о телефоне",
+                          fontSize = 28.sp,
+                          fontWeight = FontWeight.Bold,
+                          modifier = Modifier.padding(bottom = 24.dp),
+                          color = MaterialTheme.colorScheme.onBackground
+                      )
+
+                      Box(
+                          modifier = Modifier
+                              .fillMaxWidth()
+                              .clip(RoundedCornerShape(32.dp))
+                              .background(MaterialTheme.colorScheme.secondaryContainer)
+                              .padding(24.dp)
+                      ) {
+                          Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                              Text("Модель: ${Build.MODEL}", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                              Text("Производитель: ${Build.MANUFACTURER}", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                              Text("Android: ${Build.VERSION.RELEASE}", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                              Text("Ядро: ${System.getProperty("os.version")}", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                          }
                       }
+
+                      Spacer(modifier = Modifier.height(20.dp))
+
+                      Button(
+                          onClick = { launcher.launch("image/*") },
+                          modifier = Modifier.fillMaxWidth().height(60.dp),
+                          shape = RoundedCornerShape(30.dp),
+                          colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                      ) {
+                          Text("Сменить фон", fontSize = 18.sp)
+                      }
+
+                      Spacer(modifier = Modifier.weight(1f))
+
+                      Text(
+                          text = "Made by @qualixxe096",
+                          fontSize = 14.sp,
+                          color = MaterialTheme.colorScheme.onBackground,
+                          modifier = Modifier.padding(bottom = 20.dp)
+                      )
                   }
-
-                  Spacer(modifier = Modifier.height(20.dp))
-
-                  // Кнопки-пилюли
-                  Button(
-                      onClick = { /* Смена цвета для теста */ },
-                      modifier = Modifier.fillMaxWidth().height(60.dp),
-                      shape = RoundedCornerShape(30.dp),
-                      colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                  ) {
-                      Text("Сменить цвет", fontSize = 18.sp)
-                  }
-
-                  Spacer(modifier = Modifier.height(40.dp))
-
-                  Text(
-                      text = "Made by @qualixxe096",
-                      fontSize = 14.sp,
-                      color = MaterialTheme.colorScheme.onSurfaceVariant
-                  )
               }
           }
           EOF
