@@ -1,4 +1,4 @@
-name: Build Custom Device Info (No Material)
+name: Build Custom Device Info
 
 on:
   workflow_dispatch:
@@ -17,23 +17,16 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          gradle-version: 8.2
-
+      # Убрали setup-gradle, чтобы не ловить ошибку кэша GitHub
       - name: Generate Android Project
         run: |
-          # Создаём структуру папок
           mkdir -p app/src/main/java/com/qualixxe/deviceinfo
           mkdir -p app/src/main/res/drawable
           mkdir -p app/src/main/res/values
           mkdir -p app/src/main/res/layout
 
-          # Копируем иконку, если она есть в корне репозитория
           if [ -f icon.png ]; then cp icon.png app/src/main/res/drawable/icon.png; fi
 
-          # 1. settings.gradle.kts
           cat << 'EOF' > settings.gradle.kts
           pluginManagement {
               repositories { google(); mavenCentral(); gradlePluginPortal() }
@@ -46,7 +39,6 @@ jobs:
           include(":app")
           EOF
 
-          # 2. build.gradle.kts (корневой)
           cat << 'EOF' > build.gradle.kts
           plugins {
               id("com.android.application") version "8.2.0" apply false
@@ -54,7 +46,6 @@ jobs:
           }
           EOF
 
-          # 3. app/build.gradle.kts (без Material Components)
           cat << 'EOF' > app/build.gradle.kts
           plugins {
               id("com.android.application")
@@ -65,7 +56,7 @@ jobs:
               compileSdk = 34
               defaultConfig {
                   applicationId = "com.qualixxe.deviceinfo"
-                  minSdk = 26
+                  minSdk = 24
                   targetSdk = 34
                   versionCode = 1
                   versionName = "1.0"
@@ -83,21 +74,18 @@ jobs:
           }
           EOF
 
-          # 4. strings.xml (название приложения)
           cat << 'EOF' > app/src/main/res/values/strings.xml
           <resources>
-              <string name="app_name">My Device Info</string>
+              <string name="app_name">Device Info</string>
           </resources>
           EOF
 
-          # 5. themes.xml (стандартная тема AppCompat)
           cat << 'EOF' > app/src/main/res/values/themes.xml
           <resources>
               <style name="Theme.AppCompat.Light.NoActionBar" parent="Theme.AppCompat.Light.NoActionBar" />
           </resources>
           EOF
 
-          # 6. AndroidManifest.xml
           cat << 'EOF' > app/src/main/AndroidManifest.xml
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -117,61 +105,66 @@ jobs:
           </manifest>
           EOF
 
-          # 7. activity_main.xml (простой LinearLayout)
           cat << 'EOF' > app/src/main/res/layout/activity_main.xml
           <?xml version="1.0" encoding="utf-8"?>
-          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+          <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
               android:layout_width="match_parent"
               android:layout_height="match_parent"
-              android:orientation="vertical"
-              android:padding="24dp"
-              android:gravity="center_horizontal">
+              android:background="#FAFAFA">
 
-              <TextView
-                  android:layout_width="wrap_content"
-                  android:layout_height="wrap_content"
-                  android:text="Информация об устройстве"
-                  android:textSize="24sp"
-                  android:textStyle="bold"
-                  android:layout_marginBottom="24dp" />
-
-              <TextView
-                  android:id="@+id/tvInfo"
+              <LinearLayout
                   android:layout_width="match_parent"
                   android:layout_height="wrap_content"
-                  android:textSize="16sp"
-                  android:lineSpacingExtra="8dp"
-                  android:layout_marginBottom="24dp" />
+                  android:orientation="vertical"
+                  android:padding="24dp"
+                  android:gravity="center_horizontal">
 
-              <Button
-                  android:id="@+id/btnChangeBg"
-                  android:layout_width="match_parent"
-                  android:layout_height="wrap_content"
-                  android:text="Сменить фон" />
+                  <TextView
+                      android:layout_width="wrap_content"
+                      android:layout_height="wrap_content"
+                      android:text="Инфо о телефоне"
+                      android:textSize="26sp"
+                      android:textStyle="bold"
+                      android:textColor="#000000"
+                      android:layout_marginBottom="24dp" />
 
-              <Space
-                  android:layout_width="match_parent"
-                  android:layout_height="0dp"
-                  android:layout_weight="1" />
+                  <TextView
+                      android:id="@+id/tvInfo"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:textSize="16sp"
+                      android:textColor="#333333"
+                      android:lineSpacingExtra="10dp"
+                      android:layout_marginBottom="30dp" />
 
-              <TextView
-                  android:layout_width="wrap_content"
-                  android:layout_height="wrap_content"
-                  android:text="Made by @qualixxe096"
-                  android:textSize="14sp"
-                  android:textColor="#777777" />
-          </LinearLayout>
+                  <Button
+                      android:id="@+id/btnChangeBg"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:text="Сменить фон"
+                      android:padding="12dp" />
+
+                  <TextView
+                      android:layout_width="wrap_content"
+                      android:layout_height="wrap_content"
+                      android:text="Made by @qualixxe096"
+                      android:textSize="14sp"
+                      android:textColor="#888888"
+                      android:layout_marginTop="40dp" />
+              </LinearLayout>
+          </ScrollView>
           EOF
 
-          # 8. MainActivity.kt (сбор информации + смена фона)
           cat << 'EOF' > app/src/main/java/com/qualixxe/deviceinfo/MainActivity.kt
           package com.qualixxe.deviceinfo
 
+          import android.app.ActivityManager
           import android.content.Context
           import android.graphics.BitmapFactory
           import android.graphics.drawable.BitmapDrawable
           import android.net.Uri
           import android.os.Build
+          import android.os.BatteryManager
           import android.os.Bundle
           import android.widget.Button
           import android.widget.TextView
@@ -186,7 +179,6 @@ jobs:
                           val inputStream: InputStream? = contentResolver.openInputStream(it)
                           val bitmap = BitmapFactory.decodeStream(inputStream)
                           window.setBackgroundDrawable(BitmapDrawable(resources, bitmap))
-                          // Сохраняем выбор
                           getSharedPreferences("prefs", Context.MODE_PRIVATE).edit().putString("bg_uri", it.toString()).apply()
                       } catch (e: Exception) { e.printStackTrace() }
                   }
@@ -196,7 +188,7 @@ jobs:
                   super.onCreate(savedInstanceState)
                   setContentView(R.layout.activity_main)
 
-                  // Загружаем сохранённый фон, если есть
+                  // Загружаем сохраненный фон
                   val prefs = getSharedPreferences("prefs", Context.MODE_PRIVATE)
                   prefs.getString("bg_uri", null)?.let { uriString ->
                       try {
@@ -207,15 +199,26 @@ jobs:
                       } catch (e: Exception) { e.printStackTrace() }
                   }
 
-                  // Информация об устройстве
+                  // Сбор информации как в ShiYioo
+                  val am = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+                  val memoryInfo = ActivityManager.MemoryInfo()
+                  am.getMemoryInfo(memoryInfo)
+                  val ramTotal = memoryInfo.totalMem / (1024 * 1024 * 1024)
+                  val ramAvail = memoryInfo.availMem / (1024 * 1024 * 1024)
+
+                  val bm = getSystemService(Context.BATTERY_SERVICE) as BatteryManager
+                  val batteryLevel = bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
+
                   val tvInfo = findViewById<TextView>(R.id.tvInfo)
                   tvInfo.text = """
-                      Модель: ${Build.MODEL}
-                      Производитель: ${Build.MANUFACTURER}
-                      Устройство: ${Build.DEVICE}
-                      ОС: Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})
-                      Процессор: ${Build.HARDWARE}
-                      Ядро: ${System.getProperty("os.version")}
+                      📱 Модель: ${Build.MODEL}
+                      🏭 Производитель: ${Build.MANUFACTURER}
+                      ⚙️ Устройство: ${Build.DEVICE}
+                      🤖 ОС: Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})
+                      🧠 Процессор: ${Build.HARDWARE}
+                      🔋 Батарея: $batteryLevel%
+                      💾 RAM: $ramAvail GB / $ramTotal GB
+                      🏗️ Ядро: ${System.getProperty("os.version")}
                   """.trimIndent()
 
                   findViewById<Button>(R.id.btnChangeBg).setOnClickListener {
@@ -226,7 +229,9 @@ jobs:
           EOF
 
       - name: Build APK
-        run: gradle assembleDebug
+        run: |
+          chmod +x gradlew || true
+          gradle assembleDebug --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
