@@ -1,4 +1,4 @@
-name: Build A16 Style App (XML)
+name: Build Custom Device Info (No Material)
 
 on:
   workflow_dispatch:
@@ -6,7 +6,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 30
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -22,22 +22,31 @@ jobs:
         with:
           gradle-version: 8.2
 
-      - name: Generate Android Project (XML Material 3)
+      - name: Generate Android Project
         run: |
+          # Создаём структуру папок
           mkdir -p app/src/main/java/com/qualixxe/deviceinfo
           mkdir -p app/src/main/res/drawable
           mkdir -p app/src/main/res/values
           mkdir -p app/src/main/res/layout
-          
+
+          # Копируем иконку, если она есть в корне репозитория
           if [ -f icon.png ]; then cp icon.png app/src/main/res/drawable/icon.png; fi
-          
+
+          # 1. settings.gradle.kts
           cat << 'EOF' > settings.gradle.kts
-          pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
-          dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
-          rootProject.name = "DeviceInfoA16"
+          pluginManagement {
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories { google(); mavenCentral() }
+          }
+          rootProject.name = "DeviceInfoCustom"
           include(":app")
           EOF
 
+          # 2. build.gradle.kts (корневой)
           cat << 'EOF' > build.gradle.kts
           plugins {
               id("com.android.application") version "8.2.0" apply false
@@ -45,6 +54,7 @@ jobs:
           }
           EOF
 
+          # 3. app/build.gradle.kts (без Material Components)
           cat << 'EOF' > app/build.gradle.kts
           plugins {
               id("com.android.application")
@@ -69,28 +79,34 @@ jobs:
           dependencies {
               implementation("androidx.core:core-ktx:1.12.0")
               implementation("androidx.appcompat:appcompat:1.6.1")
-              implementation("com.google.android.material:material:1.11.0")
+              implementation("androidx.activity:activity-ktx:1.8.2")
           }
           EOF
 
-          cat << 'EOF' > app/src/main/res/values/themes.xml
-          <resources xmlns:tools="http://schemas.android.com/tools">
-              <style name="Theme.MyApp" parent="Theme.Material3.DayNight.NoActionBar">
-                  <item name="colorPrimary">#1E88E5</item>
-                  <item name="colorSecondaryContainer">#E3F2FD</item>
-              </style>
+          # 4. strings.xml (название приложения)
+          cat << 'EOF' > app/src/main/res/values/strings.xml
+          <resources>
+              <string name="app_name">My Device Info</string>
           </resources>
           EOF
 
+          # 5. themes.xml (стандартная тема AppCompat)
+          cat << 'EOF' > app/src/main/res/values/themes.xml
+          <resources>
+              <style name="Theme.AppCompat.Light.NoActionBar" parent="Theme.AppCompat.Light.NoActionBar" />
+          </resources>
+          EOF
+
+          # 6. AndroidManifest.xml
           cat << 'EOF' > app/src/main/AndroidManifest.xml
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <application
                   android:allowBackup="true"
                   android:icon="@drawable/icon"
-                  android:label="A16 Style"
+                  android:label="@string/app_name"
                   android:supportsRtl="true"
-                  android:theme="@style/Theme.MyApp">
+                  android:theme="@style/Theme.AppCompat.Light.NoActionBar">
                   <activity android:name=".MainActivity" android:exported="true">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
@@ -101,55 +117,37 @@ jobs:
           </manifest>
           EOF
 
+          # 7. activity_main.xml (простой LinearLayout)
           cat << 'EOF' > app/src/main/res/layout/activity_main.xml
           <?xml version="1.0" encoding="utf-8"?>
           <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-              xmlns:app="http://schemas.android.com/apk/res-auto"
               android:layout_width="match_parent"
               android:layout_height="match_parent"
               android:orientation="vertical"
               android:padding="24dp"
-              android:gravity="center_horizontal"
-              android:background="@android:color/transparent">
+              android:gravity="center_horizontal">
 
               <TextView
                   android:layout_width="wrap_content"
                   android:layout_height="wrap_content"
-                  android:text="Инфо о телефоне"
-                  android:textSize="28sp"
+                  android:text="Информация об устройстве"
+                  android:textSize="24sp"
                   android:textStyle="bold"
                   android:layout_marginBottom="24dp" />
 
-              <com.google.android.material.card.MaterialCardView
+              <TextView
+                  android:id="@+id/tvInfo"
                   android:layout_width="match_parent"
                   android:layout_height="wrap_content"
-                  app:cardCornerRadius="32dp"
-                  app:cardElevation="0dp"
-                  app:cardBackgroundColor="?attr/colorSecondaryContainer"
-                  android:layout_marginBottom="24dp">
+                  android:textSize="16sp"
+                  android:lineSpacingExtra="8dp"
+                  android:layout_marginBottom="24dp" />
 
-                  <LinearLayout
-                      android:layout_width="match_parent"
-                      android:layout_height="wrap_content"
-                      android:orientation="vertical"
-                      android:padding="24dp">
-
-                      <TextView
-                          android:id="@+id/tvInfo"
-                          android:layout_width="match_parent"
-                          android:layout_height="wrap_content"
-                          android:textSize="16sp"
-                          android:lineSpacingExtra="8dp"/>
-                  </LinearLayout>
-              </com.google.android.material.card.MaterialCardView>
-
-              <com.google.android.material.button.MaterialButton
-                  android:id="@+id/btnBg"
+              <Button
+                  android:id="@+id/btnChangeBg"
                   android:layout_width="match_parent"
-                  android:layout_height="60dp"
-                  android:text="Сменить фон"
-                  android:textSize="18sp"
-                  app:cornerRadius="30dp" />
+                  android:layout_height="wrap_content"
+                  android:text="Сменить фон" />
 
               <Space
                   android:layout_width="match_parent"
@@ -160,13 +158,18 @@ jobs:
                   android:layout_width="wrap_content"
                   android:layout_height="wrap_content"
                   android:text="Made by @qualixxe096"
-                  android:textSize="14sp" />
+                  android:textSize="14sp"
+                  android:textColor="#777777" />
           </LinearLayout>
           EOF
 
+          # 8. MainActivity.kt (сбор информации + смена фона)
           cat << 'EOF' > app/src/main/java/com/qualixxe/deviceinfo/MainActivity.kt
           package com.qualixxe.deviceinfo
 
+          import android.content.Context
+          import android.graphics.BitmapFactory
+          import android.graphics.drawable.BitmapDrawable
           import android.net.Uri
           import android.os.Build
           import android.os.Bundle
@@ -174,12 +177,17 @@ jobs:
           import android.widget.TextView
           import androidx.activity.result.contract.ActivityResultContracts
           import androidx.appcompat.app.AppCompatActivity
+          import java.io.InputStream
 
           class MainActivity : AppCompatActivity() {
               private val pickImage = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-                  if (uri != null) {
+                  uri?.let {
                       try {
-                          window.setBackgroundDrawable(android.graphics.drawable.BitmapDrawable(resources, android.provider.MediaStore.Images.Media.getBitmap(contentResolver, uri)))
+                          val inputStream: InputStream? = contentResolver.openInputStream(it)
+                          val bitmap = BitmapFactory.decodeStream(inputStream)
+                          window.setBackgroundDrawable(BitmapDrawable(resources, bitmap))
+                          // Сохраняем выбор
+                          getSharedPreferences("prefs", Context.MODE_PRIVATE).edit().putString("bg_uri", it.toString()).apply()
                       } catch (e: Exception) { e.printStackTrace() }
                   }
               }
@@ -188,15 +196,29 @@ jobs:
                   super.onCreate(savedInstanceState)
                   setContentView(R.layout.activity_main)
 
+                  // Загружаем сохранённый фон, если есть
+                  val prefs = getSharedPreferences("prefs", Context.MODE_PRIVATE)
+                  prefs.getString("bg_uri", null)?.let { uriString ->
+                      try {
+                          val uri = Uri.parse(uriString)
+                          val inputStream = contentResolver.openInputStream(uri)
+                          val bitmap = BitmapFactory.decodeStream(inputStream)
+                          window.setBackgroundDrawable(BitmapDrawable(resources, bitmap))
+                      } catch (e: Exception) { e.printStackTrace() }
+                  }
+
+                  // Информация об устройстве
                   val tvInfo = findViewById<TextView>(R.id.tvInfo)
                   tvInfo.text = """
                       Модель: ${Build.MODEL}
                       Производитель: ${Build.MANUFACTURER}
-                      Android: ${Build.VERSION.RELEASE}
+                      Устройство: ${Build.DEVICE}
+                      ОС: Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})
+                      Процессор: ${Build.HARDWARE}
                       Ядро: ${System.getProperty("os.version")}
                   """.trimIndent()
 
-                  findViewById<Button>(R.id.btnBg).setOnClickListener {
+                  findViewById<Button>(R.id.btnChangeBg).setOnClickListener {
                       pickImage.launch("image/*")
                   }
               }
@@ -209,5 +231,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: a16-style-app
+          name: custom-device-info
           path: app/build/outputs/apk/debug/app-debug.apk
