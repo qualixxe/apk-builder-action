@@ -16,8 +16,12 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      # ⬇️ ИСПРАВЛЕНО: используем версию v4.0.4 вместо v3
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4.0.4
+        with:
+          # Явно указываем пустой список пакетов, чтобы не запрашивать удаленный "tools"
+          packages: ''
 
       - name: Clone Target Project
         run: |
@@ -28,7 +32,6 @@ jobs:
       - name: Build Debug APK
         run: |
           cd target_app
-          # Если gradlew нет или он сломан, используем глобальный gradle
           ./gradlew assembleDebug || gradle assembleDebug
 
       - name: Upload APK
