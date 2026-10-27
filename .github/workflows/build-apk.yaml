@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Custom APK
 
 on:
   workflow_dispatch:
@@ -16,26 +16,206 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      # ⬇️ ИСПРАВЛЕНО: используем версию v4.0.4 вместо v3
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v4.0.4
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
         with:
-          # Явно указываем пустой список пакетов, чтобы не запрашивать удаленный "tools"
-          packages: ''
+          gradle-version: 8.2
 
-      - name: Clone Target Project
+      - name: Generate Android Project
         run: |
-          git clone https://github.com/ShiYioo/deviceInfo.git target_app
-          cd target_app
-          chmod +x gradlew || true
+          mkdir -p app/src/main/java/com/qualixxe/deviceinfo
+          mkdir -p app/src/main/res/drawable
+          
+          # Копируем твою иконку в ресурсы Android
+          cp icon.png app/src/main/res/drawable/icon.png
+          
+          # 1. settings.gradle.kts
+          cat << 'EOF' > settings.gradle.kts
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "DeviceInfo"
+          include(":app")
+          EOF
 
-      - name: Build Debug APK
-        run: |
-          cd target_app
-          ./gradlew assembleDebug || gradle assembleDebug
+          # 2. build.gradle.kts (корневой)
+          cat << 'EOF' > build.gradle.kts
+          plugins {
+              id("com.android.application") version "8.2.0" apply false
+              id("org.jetbrains.kotlin.android") version "1.9.20" apply false
+          }
+          EOF
+
+          # 3. app/build.gradle.kts
+          cat << 'EOF' > app/build.gradle.kts
+          plugins {
+              id("com.android.application")
+              id("org.jetbrains.kotlin.android")
+          }
+          android {
+              namespace = "com.qualixxe.deviceinfo"
+              compileSdk = 34
+              defaultConfig {
+                  applicationId = "com.qualixxe.deviceinfo"
+                  minSdk = 24
+                  targetSdk = 34
+                  versionCode = 1
+                  versionName = "1.0"
+              }
+              buildTypes {
+                  release {
+                      isMinifyEnabled = false
+                  }
+              }
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+              kotlinOptions {
+                  jvmTarget = "17"
+              }
+          }
+          dependencies {
+              implementation("androidx.core:core-ktx:1.12.0")
+              implementation("androidx.appcompat:appcompat:1.6.1")
+              implementation("com.google.android.material:material:1.11.0")
+              implementation("androidx.activity:activity-ktx:1.8.2")
+          }
+          EOF
+
+          # 4. AndroidManifest.xml (добавлена строка android:icon="@drawable/icon")
+          cat << 'EOF' > app/src/main/AndroidManifest.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <application
+                  android:allowBackup="true"
+                  android:icon="@drawable/icon"
+                  android:label="Инфо о телефоне"
+                  android:supportsRtl="true"
+                  android:theme="@android:style/Theme.DeviceDefault.DayNight">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          # 5. MainActivity.kt
+          cat << 'EOF' > app/src/main/java/com/qualixxe/deviceinfo/MainActivity.kt
+          package com.qualixxe.deviceinfo
+
+          import android.graphics.BitmapFactory
+          import android.graphics.drawable.BitmapDrawable
+          import android.net.Uri
+          import android.os.Build
+          import android.os.Bundle
+          import android.widget.*
+          import androidx.activity.result.contract.ActivityResultContracts
+          import androidx.appcompat.app.AppCompatActivity
+          import androidx.core.view.setPadding
+
+          class MainActivity : AppCompatActivity() {
+              private var mainLayout: LinearLayout? = null
+              private lateinit var contentLayout: LinearLayout
+
+              private val pickImage = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+                  if (uri != null) {
+                      try {
+                          val inputStream = contentResolver.openInputStream(uri)
+                          val bitmap = BitmapFactory.decodeStream(inputStream)
+                          mainLayout?.background = BitmapDrawable(resources, bitmap)
+                      } catch (e: Exception) {
+                          e.printStackTrace()
+                      }
+                  }
+              }
+
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+
+                  mainLayout = LinearLayout(this).apply {
+                      orientation = LinearLayout.VERTICAL
+                      setPadding(50)
+                  }
+
+                  val scrollView = ScrollView(this)
+                  contentLayout = LinearLayout(this).apply {
+                      orientation = LinearLayout.VERTICAL
+                      setBackgroundColor(android.graphics.Color.argb(220, 255, 255, 255))
+                      setPadding(40)
+                  }
+
+                  val title = TextView(this).apply {
+                      text = "Информация об устройстве"
+                      textSize = 24f
+                      setTextColor(android.graphics.Color.BLACK)
+                  }
+
+                  val infoText = TextView(this).apply {
+                      textSize = 16f
+                      setTextColor(android.graphics.Color.BLACK)
+                      setPadding(0, 30, 0, 30)
+                      text = """
+                          📱 Модель: ${'$'}{Build.MODEL}
+                          🏭 Производитель: ${'$'}{Build.MANUFACTURER}
+                          ⚙️ Устройство: ${'$'}{Build.DEVICE}
+                          
+                          🤖 ОС: Android ${'$'}{Build.VERSION.RELEASE} (API ${'$'}{Build.VERSION.SDK_INT})
+                          
+                          🧠 Процессор: ${'$'}{Build.HARDWARE}
+                          
+                          🏗️ Ядро: ${'$'}{System.getProperty("os.version")}
+                      """.trimIndent()
+                  }
+
+                  val btnChangeBg = Button(this).apply {
+                      text = "Сменить фон"
+                      setOnClickListener {
+                          pickImage.launch("image/*")
+                      }
+                  }
+
+                  val madeBy = TextView(this).apply {
+                      text = "Made by @qualixxe096"
+                      textSize = 14f
+                      setTextColor(android.graphics.Color.DKGRAY)
+                      setPadding(0, 50, 0, 0)
+                  }
+
+                  contentLayout.addView(title)
+                  contentLayout.addView(infoText)
+                  contentLayout.addView(btnChangeBg)
+                  contentLayout.addView(madeBy)
+
+                  scrollView.addView(contentLayout)
+                  mainLayout?.addView(scrollView)
+
+                  setContentView(mainLayout)
+              }
+          }
+          EOF
+
+      - name: Build APK
+        run: gradle assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: device-info-apk
-          path: target_app/app/build/outputs/apk/debug/app-debug.apk
+          name: custom-device-info-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
